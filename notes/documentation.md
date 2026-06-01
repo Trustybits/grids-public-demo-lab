@@ -96,3 +96,8 @@ token does not allow writing to the workflows file. Details about this are outli
 
 The private repo should have all of the code that the public repo does. The private repo may have *additional* files not
 present in the public repo, but it must not match or collide with any paths in the public repo. 
+
+### Extras
+
+Workflows in the public repo will be present in the private repo. Thus, workflows only intended to run in the public repo
+(like the version bump) must be guarded to only run in that repo. This applies to contributions as well.
