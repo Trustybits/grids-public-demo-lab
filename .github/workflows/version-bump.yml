@@ -1,12 +1,38 @@
 name: Version Bump
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ TEMPORARILY DISABLED — this workflow does NOT run automatically right now.
+#
+# The real trigger (workflow_run on "Test") is commented out below and replaced
+# with a manual-only `workflow_dispatch`, so the file stays valid (no "invalid
+# workflow file" error) but never fires on its own. As an extra safety net, the
+# job's `if:` guard depends on `github.event.workflow_run.*`, which is empty for a
+# manual dispatch — so even a manual run is a no-op until the real trigger is back.
+#
+# TO RE-ENABLE:
+#   1. Uncomment the `workflow_run:` block below and delete the
+#      `workflow_dispatch:` line.
+#   2. Ensure the BUMP_APP_ID and BUMP_APP_PRIVATE_KEY secrets are set
+#      (see app-token-setup.md).
+# ─────────────────────────────────────────────────────────────────────────────
+#
 # Runs only after the Test workflow completes. We open a pull request with the
 # bumped version rather than pushing straight to main.
+#
+# The PR is created with a token minted from a GitHub App (see app-token-setup.md),
+# NOT the built-in GITHUB_TOKEN. The built-in token deliberately does not trigger
+# other workflows, so a GITHUB_TOKEN-created PR would never run Test and could not
+# satisfy branch protection. An App-created PR does trigger Test. This does not
+# cause a loop: the bump PR's Test run is a `pull_request` event on a
+# `version-bump-*` branch, so it fails this workflow's `push`/`main` guard below.
 on:
-  workflow_run:
-    workflows: ["Test"]
-    types:
-      - completed
+  # Manual-only while disabled. Remove this line when re-enabling.
+  workflow_dispatch:
+  # --- Re-enable by uncommenting the trigger below ---
+  # workflow_run:
+  #   workflows: ["Test"]
+  #   types:
+  #     - completed
 
 # Serialize so two test runs can't open competing bump PRs at the same time.
 concurrency:
@@ -29,11 +55,19 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Generate App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.BUMP_APP_ID }}
+          private-key: ${{ secrets.BUMP_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # App token so the resulting PR triggers the Test workflow.
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Skip if the latest commit is already a version bump
         id: guard
@@ -77,28 +111,28 @@ jobs:
         if: steps.open_pr.outputs.should_bump == 'true'
         with:
           node-version: 24
-          cache: npm
 
       - name: Bump version
         id: bump
         if: steps.open_pr.outputs.should_bump == 'true'
+        # Patches the version in package.json and package-lock.json directly (no
+        # npm install) to avoid platform-dependent optional-dependency churn.
         run: |
           new_version=$(node scripts/bump-version.mjs)
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Refresh lockfile
-        if: steps.open_pr.outputs.should_bump == 'true'
-        run: npm install
-
       - name: Open pull request
         if: steps.open_pr.outputs.should_bump == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Must be the App token (not GITHUB_TOKEN) so opening the PR triggers Test.
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           NEW_VERSION: ${{ steps.bump.outputs.version }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           branch="version-bump-${NEW_VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Attribute the commit to the App's bot identity.
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
           git checkout -b "$branch"
           git add package.json package-lock.json
           git commit -m "Bump version to: ${NEW_VERSION}"
