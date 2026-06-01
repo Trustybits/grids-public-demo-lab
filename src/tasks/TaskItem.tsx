@@ -13,6 +13,15 @@ function formatDueDate(dueDate: string) {
   })
 }
 
+/** True when a YYYY-MM-DD due date falls before today (local time). */
+function isOverdue(dueDate: string) {
+  const due = new Date(`${dueDate}T00:00:00`)
+  if (Number.isNaN(due.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return due.getTime() < today.getTime()
+}
+
 export function TaskItem({ task }: { task: Task }) {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(task.title)
@@ -20,6 +29,7 @@ export function TaskItem({ task }: { task: Task }) {
   const [dueDate, setDueDate] = useState(task.dueDate ?? '')
 
   const isCompleted = task.status === 'completed'
+  const overdue = !isCompleted && task.dueDate != null && isOverdue(task.dueDate)
 
   async function handleSave() {
     const trimmed = title.trim()
@@ -89,7 +99,10 @@ export function TaskItem({ task }: { task: Task }) {
         <span className="task-title">{task.title}</span>
         {task.notes && <span className="task-notes">{task.notes}</span>}
         {task.dueDate && (
-          <span className="task-date">Due {formatDueDate(task.dueDate)}</span>
+          <span className={`task-date ${overdue ? 'overdue' : ''}`}>
+            {overdue ? 'Overdue · ' : 'Due '}
+            {formatDueDate(task.dueDate)}
+          </span>
         )}
       </div>
       <div className="task-actions">

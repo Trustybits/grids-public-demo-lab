@@ -229,6 +229,9 @@ section h2 {
   color: var(--muted);
   font-weight: 500;
 }
+.task-date.overdue {
+  color: var(--danger);
+}
 .task.completed .task-title {
   text-decoration: line-through;
   color: var(--muted);
