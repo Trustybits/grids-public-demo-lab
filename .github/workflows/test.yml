@@ -8,6 +8,9 @@ on:
 
 jobs:
   test:
+    # Skip the version-bump commit itself so it doesn't re-trigger the bump
+    # workflow. Pull requests always run (head_commit is only set on pushes).
+    if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Bump version to:') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
