@@ -10,14 +10,16 @@ export function TasksPage() {
   const { active, completed, loading } = useTasks(user?.uid)
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
+  const [dueDate, setDueDate] = useState('')
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault()
     const trimmed = title.trim()
     if (!trimmed || !user) return
-    await createTask(user.uid, trimmed, notes.trim())
+    await createTask(user.uid, trimmed, notes.trim(), dueDate || null)
     setTitle('')
     setNotes('')
+    setDueDate('')
   }
 
   return (
@@ -44,6 +46,12 @@ export function TasksPage() {
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notes (optional)"
           aria-label="Task notes"
+        />
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          aria-label="Due date"
         />
         <button type="submit">Add task</button>
       </form>

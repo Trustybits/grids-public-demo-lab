@@ -43,11 +43,13 @@ export async function createTask(
   ownerId: string,
   title: string,
   notes: string,
+  dueDate: string | null = null,
 ) {
   await addDoc(tasksCollection, {
     ownerId,
     title,
     notes,
+    dueDate,
     status: 'active' satisfies TaskStatus,
     createdAt: serverTimestamp(),
   })
@@ -55,7 +57,7 @@ export async function createTask(
 
 export async function updateTask(
   id: string,
-  changes: Partial<Pick<Task, 'title' | 'notes' | 'status'>>,
+  changes: Partial<Pick<Task, 'title' | 'notes' | 'dueDate' | 'status'>>,
 ) {
   await updateDoc(doc(db, 'tasks', id), changes)
 }

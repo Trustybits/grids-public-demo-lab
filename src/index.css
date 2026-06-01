@@ -224,6 +224,11 @@ section h2 {
   color: var(--muted);
   word-break: break-word;
 }
+.task-date {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 500;
+}
 .task.completed .task-title {
   text-decoration: line-through;
   color: var(--muted);

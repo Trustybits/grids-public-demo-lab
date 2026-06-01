@@ -7,6 +7,7 @@ export interface Task {
   ownerId: string
   title: string
   notes: string
+  dueDate: string | null
   status: TaskStatus
   createdAt: Timestamp | null
 }
