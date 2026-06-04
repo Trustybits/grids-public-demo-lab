@@ -70,6 +70,8 @@ when all checks pass, any failing checks block the merge)
 - Require reviewers (1+) (requires 1 or more authorized individuals to review the code before merging)
 - Additional settings and sub-settings as set on the ruleset
 
+See "Recommended Branch Security Ruleset" below for the recommended ruleset
+
 **Version bump script**
 
 With branch protections on main enabled, this changes how the version-bump script would work. Instead of committing
@@ -101,3 +103,56 @@ present in the public repo, but it must not match or collide with any paths in t
 
 Workflows in the public repo will be present in the private repo. Thus, workflows only intended to run in the public repo
 (like the version bump) must be guarded to only run in that repo. This applies to contributions as well.
+
+
+### Recommended Branch Security Ruleset
+
+Definitely Include (likely on both public and private repos):
+
+- Restrict deletions (cannot delete main, for obvious reasons)
+- Require a pull request before merging (block direct commits on main to control how code gets into main)
+  - Required Approvals: 1 (require at least 1 maintainer to approve the code, at this size of a repo 1 is probably enough)
+  - Dismiss stale PR approvals when new commits are pushed (if the PR was approved and new changes are pushed into the PR,
+  this will reset the approval status and require approval again, since new code was introduced)
+  - Require conversation resolution before merging (if a review conversation is ongoing, it must be resolved before merging.
+  This is so that any maintainer concerns are resolved prior to the merge)
+  - Allowed merge methods: Merge, Squash, Rebase (narrow if we only want some or one of these)
+- Require Status Checks to Pass (this requires our CI workflows to pass before a merge is allowed, thus preventing issues)
+- Block force pushes (force pushes rewrite git history, blocking this prevents rewriting of history)
+
+
+Optional/Unnecessary:
+
+- merge queue (too much complexity and churn for our repo, we don't have PRs happening often enough to merit this. Essentially,
+more trouble than what it's worth at the current moment. If traffic becomes high and PRs are happening frequently (like many
+a day) then look into this option)
+- Restrict creations (prevents people from creating a branch named 'main', which already can't be done anyways since main exists)
+- Restrict updates (prevents people without bypass permissions from updating main. Likely unnecessary because we already require
+PRs before merging)
+- Require linear history (prevents merge commits from entering the branch, must be rebase or squash. Unnecessary unless we don't
+want merge commits)
+- Require deployments to succeed (this is useful if the PR must deploy to a staging environment, not production, before we merge
+it in. This could be useful if we set up a staging environment for testing and QA, and requiring it to deploy successfully to
+that environment makes sense. This would incur the cost of setting up and using that staging environment, which may or may not
+be worth it at this scale. Worth a further look, but if we do not have a staging environment this should remain off)
+- Require signed commits (requires a cryptographic signature on each commit, which requires additional setup for each developer.
+Unnecessary at the current point in time, likely more trouble than it's worth).
+- Require review from specific teams (under the require PR settings) (Assigns required reviewers based on file patterns, so
+you can assign specific reviewers if specific kinds of files were changed. Likely unnecessary since we don't have clear
+ownership boundaries in the code, and the codebase is small enough a single general reviewer (from the settings above) is 
+probably sufficient)
+- Require review from Code Owners (uses the CODEOWNERS.md file, which defines specific file and their owners. Similar to requiring
+a review from a team, except using the CODEOWNERS document. Unnecessary for the same reasons as the previous)
+- Require branches to be up to date before merging (again, at our current scale this is unnecessary and likely creates more
+trouble than what it's worth. If we see issues where CI passes on the PR but then fails after the merge, then enable this)
+- Do not require status checks on creation (This is unnecessary since these protections target `main` and only `main`, so
+no one will be creating another branch called `main`, which is when this would apply)
+- Require code scanning results (We don't have any code scanning tools configured, so unless we wanted to add a code scanning
+tool this is unnecessary)
+- Require code quality results (We don't have any code quality tools configured, so unless we wanted to add a code quality tool
+this is unnecessary)
+- Automatically request Copilot code review (Automatically requests a review from Copilot, which uses the PR author's Copilot
+quota, and likely requires a paid version of Copilot. Probably unnecessary at this point in time)
+- The Restrictions section is Enterprise, and so currently inaccessible. These settings include Restrict commit metadata
+and Restrict branch names. Restric commit metadata is currently unnecessary, and restrict branch names is not applicable
+because this ruleset only targets "main"

@@ -28,7 +28,82 @@ The private key should be the GitHub App private key in PEM format. The token cr
 
 Use this workflow when the upstream pull may include `.github/workflows/*` changes. Without the app token and workflow-write permission, the pull can merge locally inside the runner but the final push back to `origin` will be rejected.
 
-## Option B: Do Not Sync Public Workflows
+## Protected Private Main Branches
+
+If the private repo requires pull requests before merging to `main`, the pull-upstream workflow needs an intentional branch-protection strategy. The existing direct-push shape checks out the target branch, merges the public upstream branch, and pushes the result back to the same private branch. A protected `main` branch with "Require a pull request before merging" will reject that final push unless the workflow actor is allowed to bypass the rule.
+
+There are two valid models:
+
+- Allow the pull-upstream GitHub App to bypass the protected-branch rule and continue pushing directly to `main`.
+- Change the workflow so it pushes the upstream merge to a sync branch and opens a pull request into `main`.
+
+The bypass model is simpler operationally. The pull-request model preserves human review for private deploy state.
+
+## Option A: Bypass Private Main Protection
+
+In this model, the private repo keeps `main` protected, but the GitHub App used by `pull-upstream-with-permissions.yml` is added as a bypass actor for the branch protection rule or repository ruleset. The workflow can then keep its current direct-push behavior:
+
+```text
+checkout private main
+fetch public upstream/main
+merge upstream/main
+push HEAD back to private main
+```
+
+Use this only if upstream syncs are trusted to update private `main` without PR review. That can be reasonable for a tightly controlled mirror, but it means the branch-protection rule will not force a human review on upstream sync changes.
+
+The GitHub App token needs:
+
+- `Contents: Read and write` to check out the private repo and push normal file changes.
+- `Workflows: Read and write` if the upstream merge can add or modify files under `.github/workflows/`.
+
+No pull-request permission is needed for this direct-push path because the workflow does not create a PR.
+
+Workflow-file permission is only special on the push back into the private repo. Pulling or fetching workflow files from the public upstream repo is just a normal Git fetch. The failure happens when the workflow tries to push those workflow-file changes into the private repo without workflow-write permission.
+
+## Option B: Open a Pull Request Into Private Main
+
+In this model, the workflow does not bypass private `main` protection. Instead, it creates a sync branch and opens a PR:
+
+```text
+checkout private main
+fetch public upstream/main
+merge upstream/main
+push the merge commit to a sync branch
+open a PR from the sync branch into private main
+```
+
+For example, the sync branch could be named `pull-upstream-main-to-main` or include the workflow run number to avoid collisions. The existing direct-push step:
+
+```sh
+git push origin "HEAD:${{ inputs.target_branch }}"
+```
+
+would be replaced with a branch push and PR creation step, such as:
+
+```sh
+branch="pull-upstream-${{ inputs.upstream_branch }}-to-${{ inputs.target_branch }}"
+git checkout -B "$branch"
+git push --force-with-lease origin "$branch"
+
+gh pr create \
+  --base "${{ inputs.target_branch }}" \
+  --head "$branch" \
+  --title "Pull upstream ${{ inputs.upstream_branch }} into ${{ inputs.target_branch }}" \
+  --body "Merges public upstream changes into the private repo."
+```
+
+The GitHub App token needs:
+
+- `Contents: Read and write` to check out the private repo and push the sync branch.
+- `Pull requests: Read and write` to create or update the PR.
+- `Workflows: Read and write` if the upstream merge can add or modify files under `.github/workflows/`.
+
+The workflow still needs workflow-write permission even though it is pushing to a PR branch instead of directly to `main`. GitHub checks workflow-file updates when they are pushed to the private repo, not only when they land on the protected branch.
+
+The PR method is the better fit if the private repo's `main` branch represents production deploy state and the team wants review before public source changes become private deploy changes.
+
+## Option C: Do Not Sync Public Workflows
 
 An alternative is to make the private repo own its workflows independently and prevent upstream workflow changes from being pushed into the private repo. In that model, the pull-upstream workflow would need to exclude or revert `.github/workflows/*` changes before pushing.
 
@@ -39,4 +114,4 @@ That avoids needing a GitHub App token with workflow-write permission, but it ad
 - Conflicts or drift are more likely if both repos evolve their workflows separately.
 - Someone still needs to decide which public workflow changes should be manually copied into private.
 
-Use Option B only if the private repo's workflow directory is intentionally different from the public repo's workflow directory. If the private repo is meant to mirror public workflows, the App token approach is simpler and more faithful to the public source of truth.
+Use this option only if the private repo's workflow directory is intentionally different from the public repo's workflow directory. If the private repo is meant to mirror public workflows, the App token approach is simpler and more faithful to the public source of truth.
