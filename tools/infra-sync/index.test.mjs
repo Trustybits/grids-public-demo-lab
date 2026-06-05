@@ -333,10 +333,11 @@ function commandResult(command, args, spawnOptions) {
   }
 
   if (command === 'git' && args[0] === 'diff') {
-    const file = args[args.indexOf('--label') + 1].replace('private/', '')
+    const comparedPath = args.at(-1)
+    const file = comparedPath === '/dev/null' ? args.at(-2) : comparedPath
     return {
       status: 1,
-      stdout: `diff --git a/${file} b/${file}\n`,
+      stdout: `diff --git a/${keyFor(file)} b/${keyFor(file)}\n`,
     }
   }
 
