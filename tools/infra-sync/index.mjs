@@ -29,6 +29,7 @@ const ALLOWED_FILES = [
   "firebase.json",
   "firestore.indexes.json",
   "firestore.rules",
+  "infrastructure.yes",
 ];
 
 main().catch((error) => {
@@ -69,7 +70,9 @@ async function main() {
 
     const changesToApply = await confirmPrivateOnlyDeletions(changes);
     if (changesToApply.length === 0) {
-      console.log("No pull request created because no confirmed changes remain.");
+      console.log(
+        "No pull request created because no confirmed changes remain.",
+      );
       return;
     }
 
@@ -82,7 +85,11 @@ async function main() {
       return;
     }
 
-    const prUrl = await createPrivateRepoPr(config, privateCheckout, changesToApply);
+    const prUrl = await createPrivateRepoPr(
+      config,
+      privateCheckout,
+      changesToApply,
+    );
     console.log("");
     console.log("Infrastructure sync pull request created:");
     console.log(prUrl);
@@ -110,7 +117,9 @@ async function loadConfig() {
   try {
     parsed = JSON.parse(await readFile(CONFIG_PATH, "utf8"));
   } catch (error) {
-    throw new Error(`Could not parse ${relative(CONFIG_PATH)}: ${error.message}`);
+    throw new Error(
+      `Could not parse ${relative(CONFIG_PATH)}: ${error.message}`,
+    );
   }
 
   if (!isNonEmptyString(parsed.privateRepo)) {
@@ -152,7 +161,11 @@ function validateFiles(files) {
       throw new Error("Config `files` entries must be non-empty strings.");
     }
 
-    if (path.isAbsolute(file) || file.includes("..") || path.normalize(file) !== file) {
+    if (
+      path.isAbsolute(file) ||
+      file.includes("..") ||
+      path.normalize(file) !== file
+    ) {
       throw new Error(`Unsafe file path in config: ${file}`);
     }
 
@@ -178,9 +191,13 @@ async function assertCommandAvailable(command, messageLines) {
 }
 
 async function assertGitHubAuth() {
-  const result = await run("gh", ["auth", "status", "--hostname", "github.com"], {
-    allowFailure: true,
-  });
+  const result = await run(
+    "gh",
+    ["auth", "status", "--hostname", "github.com"],
+    {
+      allowFailure: true,
+    },
+  );
 
   if (result.status !== 0) {
     throw new Error(
@@ -263,18 +280,14 @@ async function diffFile(file, privatePath, publicPath) {
   const newPath = publicExists ? publicPath : "/dev/null";
   const result = await run(
     "git",
-    [
-      "diff",
-      "--no-index",
-      "--no-ext-diff",
-      oldPath,
-      newPath,
-    ],
+    ["diff", "--no-index", "--no-ext-diff", oldPath, newPath],
     { allowFailure: true },
   );
 
   if (result.status !== 0 && result.status !== 1) {
-    throw new Error(`Could not generate diff for ${file}: ${result.stderr.trim()}`);
+    throw new Error(
+      `Could not generate diff for ${file}: ${result.stderr.trim()}`,
+    );
   }
 
   return result.stdout.trimEnd();
@@ -306,7 +319,9 @@ async function confirmPrivateOnlyDeletions(changes) {
     return changes;
   }
 
-  const privateOnlyFiles = new Set(privateOnlyChanges.map((change) => change.file));
+  const privateOnlyFiles = new Set(
+    privateOnlyChanges.map((change) => change.file),
+  );
   return changes.filter((change) => !privateOnlyFiles.has(change.file));
 }
 
@@ -316,7 +331,9 @@ async function createPrivateRepoPr(config, privateCheckout, changes) {
 
   try {
     await assertCleanCheckout(privateCheckout);
-    await runChecked("git", ["switch", "-c", branchName], { cwd: privateCheckout });
+    await runChecked("git", ["switch", "-c", branchName], {
+      cwd: privateCheckout,
+    });
 
     for (const change of changes) {
       if (change.publicExists) {
@@ -331,9 +348,13 @@ async function createPrivateRepoPr(config, privateCheckout, changes) {
       }
     }
 
-    await runChecked("git", ["add", "--", ...changes.map((change) => change.file)], {
-      cwd: privateCheckout,
-    });
+    await runChecked(
+      "git",
+      ["add", "--", ...changes.map((change) => change.file)],
+      {
+        cwd: privateCheckout,
+      },
+    );
 
     const status = await runChecked(
       "git",
@@ -342,7 +363,9 @@ async function createPrivateRepoPr(config, privateCheckout, changes) {
     );
 
     if (status.stdout.trim() === "") {
-      throw new Error("No private repo changes remained after applying the sync.");
+      throw new Error(
+        "No private repo changes remained after applying the sync.",
+      );
     }
 
     await runChecked(
@@ -408,7 +431,10 @@ async function assertCleanCheckout(checkoutPath) {
 
 async function getPublicContext() {
   const [branch, commit, remote] = await Promise.all([
-    run("git", ["branch", "--show-current"], { cwd: REPO_ROOT, allowFailure: true }),
+    run("git", ["branch", "--show-current"], {
+      cwd: REPO_ROOT,
+      allowFailure: true,
+    }),
     run("git", ["rev-parse", "--short", "HEAD"], {
       cwd: REPO_ROOT,
       allowFailure: true,
@@ -442,7 +468,10 @@ async function confirm(question) {
 
   try {
     const answer = await rl.question(question);
-    return answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
+    return (
+      answer.trim().toLowerCase() === "y" ||
+      answer.trim().toLowerCase() === "yes"
+    );
   } finally {
     rl.close();
   }
@@ -469,7 +498,9 @@ function normalizeGitHubRepo(repo) {
   );
   if (httpsMatch?.groups) {
     return [
-      httpsMatch.groups.host === "github.com" ? undefined : httpsMatch.groups.host,
+      httpsMatch.groups.host === "github.com"
+        ? undefined
+        : httpsMatch.groups.host,
       httpsMatch.groups.owner,
       httpsMatch.groups.name,
     ]
@@ -496,7 +527,11 @@ function normalizeGitHubRepo(repo) {
 }
 
 function validateSafeBranchName(value, label) {
-  if (!/^[A-Za-z0-9._/-]+$/.test(value) || value.includes("..") || value.endsWith("/")) {
+  if (
+    !/^[A-Za-z0-9._/-]+$/.test(value) ||
+    value.includes("..") ||
+    value.endsWith("/")
+  ) {
     throw new Error(`Unsafe ${label}: ${value}`);
   }
 }
@@ -517,7 +552,9 @@ async function assertNoSymlink(filePath) {
   });
 
   if (stats?.isSymbolicLink()) {
-    throw new Error(`Refusing to read symlinked infrastructure file: ${relative(filePath)}`);
+    throw new Error(
+      `Refusing to read symlinked infrastructure file: ${relative(filePath)}`,
+    );
   }
 }
 

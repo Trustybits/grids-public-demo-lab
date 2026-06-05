@@ -26,6 +26,8 @@ The file list is also hardcoded by the CLI as a safety allowlist:
 - `firestore.indexes.json`
 - `firestore.rules`
 
+The gitignored local config can choose a subset of those files, but it cannot add new syncable paths on its own. To sync another file, update the committed CLI allowlist, this example/documentation, and the tests so the new path is reviewed before anyone can push it to the private repo.
+
 ## Usage
 
 ```bash

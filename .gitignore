@@ -29,6 +29,7 @@ dist-ssr
 firebase.json
 firestore.indexes.json
 firestore.rules
+infrastructure.yes
 
 # Local private infrastructure sync config
 tools/infra-sync/infra-sync.config.json
