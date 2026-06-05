@@ -8,6 +8,7 @@
     "emulators": "firebase emulators:start --project demo-grids-open-source",
     "dev:all": "firebase emulators:exec --ui --project demo-grids-open-source \"vite\"",
     "build": "tsc -b && vite build",
+    "infra:sync": "node tools/infra-sync/index.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

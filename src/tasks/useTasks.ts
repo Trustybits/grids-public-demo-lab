@@ -7,17 +7,18 @@ import type { Task } from './types'
  */
 export function useTasks(ownerId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadedOwnerId, setLoadedOwnerId] = useState<string | undefined>()
 
   useEffect(() => {
     if (!ownerId) return
-    setLoading(true)
     const unsubscribe = subscribeToTasks(ownerId, (next) => {
       setTasks(next)
-      setLoading(false)
+      setLoadedOwnerId(ownerId)
     })
     return unsubscribe
   }, [ownerId])
+
+  const loading = ownerId ? loadedOwnerId !== ownerId : true
 
   const { active, completed } = useMemo(() => {
     return {

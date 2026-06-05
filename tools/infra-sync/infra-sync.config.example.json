@@ -1,0 +1,11 @@
+{
+  "privateRepo": "OWNER/PRIVATE_DEPLOYMENT_REPO",
+  "baseBranch": "main",
+  "branchPrefix": "infra-sync/",
+  "files": [
+    ".firebaserc",
+    "firebase.json",
+    "firestore.indexes.json",
+    "firestore.rules"
+  ]
+}
