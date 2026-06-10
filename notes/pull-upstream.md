@@ -28,6 +28,20 @@ The private key should be the GitHub App private key in PEM format. The token cr
 
 Use this workflow when the upstream pull may include `.github/workflows/*` changes. Without the app token and workflow-write permission, the pull can merge locally inside the runner but the final push back to `origin` will be rejected.
 
+## GitHub App Ownership (Personal Account vs Org)
+
+A GitHub App is not an org-only feature. When the private repo is owned by an individual account rather than an organization, the App flow is the same: the App is created under that account's Settings -> Developer settings -> GitHub Apps -> New, installed on the same account, and scoped to the single private repo. The token-minting step, the checkout `token:`, and the `GH_TOKEN` env wiring are byte-for-byte identical to the org case.
+
+Personal-account specifics to keep in mind:
+
+- No org-level secrets. The App Client ID and private key live as repo-level variables/secrets (`PULL_UPSTREAM_APP_CLIENT_ID`, `PULL_UPSTREAM_APP_PRIVATE_KEY`). Fine for a single repo; it just means duplicating them per-repo if the sync is ever extended to more repos.
+- Sole admin. The App is tied to the individual account, so if that account goes away, the sync does too.
+- When creating the App, leave "Where can this GitHub App be installed?" as "Only on this account", and during installation choose "Only select repositories" and pick the private repo. Private repos are fully supported with no plan-tier restriction.
+
+### Fine-grained PAT alternative
+
+A fine-grained personal access token with `Contents: write`, `Pull requests: write`, and `Workflows: write` can stand in for the App and is faster to set up (no App to create). The trade-offs: it is bound to a user, has a manual expiry that must be rotated, and is broader than ideal. The App installation token auto-expires (about one hour) and is scoped to the installation, so the App is the more durable choice for a daily, workflow-touching sync. A classic (non-fine-grained) PAT would instead need the `workflow` scope for the same workflow-file reason.
+
 ## Protected Private Main Branches
 
 If the private repo requires pull requests before merging to `main`, the pull-upstream workflow needs an intentional branch-protection strategy. The existing direct-push shape checks out the target branch, merges the public upstream branch, and pushes the result back to the same private branch. A protected `main` branch with "Require a pull request before merging" will reject that final push unless the workflow actor is allowed to bypass the rule.
@@ -102,6 +116,31 @@ The GitHub App token needs:
 The workflow still needs workflow-write permission even though it is pushing to a PR branch instead of directly to `main`. GitHub checks workflow-file updates when they are pushed to the private repo, not only when they land on the protected branch.
 
 The PR method is the better fit if the private repo's `main` branch represents production deploy state and the team wants review before public source changes become private deploy changes.
+
+### The default-token PR setting does not apply here
+
+The repository setting Settings -> Actions -> General -> "Allow GitHub Actions to create and approve pull requests" only governs the default `GITHUB_TOKEN`. Because Option B opens the PR with the GitHub App token, that toggle does not apply and does not need to be enabled. It would only matter if the PR were ever created with `GITHUB_TOKEN` instead of the App token.
+
+### Skipping empty PRs and running on a schedule
+
+Option B can run on a daily `schedule:` cron in addition to `workflow_dispatch`. To avoid opening an empty PR on days when nothing changed upstream, gate the merge and PR steps on whether upstream actually has new commits, checked right after the fetch:
+
+```sh
+git fetch upstream "$UPSTREAM"
+if [ "$(git rev-list --count HEAD..upstream/$UPSTREAM)" -eq 0 ]; then
+  echo "changes=false" >> "$GITHUB_OUTPUT"   # nothing new upstream; exit cleanly
+else
+  echo "changes=true" >> "$GITHUB_OUTPUT"
+fi
+```
+
+The create-sync-branch, merge, push, and `gh pr create` steps then run only when `changes == 'true'`. `git rev-list --count HEAD..upstream/<branch>` answers "does upstream have commits the target branch does not"; a count of `0` means there has been no new upstream work since the last pull, so no PR is created.
+
+Scheduled runs do not receive `workflow_dispatch` inputs, so any reference to `inputs.upstream_branch` / `inputs.target_branch` needs a fallback such as `${{ inputs.upstream_branch || 'main' }}` — including the checkout `ref:`.
+
+Duplicate PRs: with a timestamped or run-number sync branch, two scheduled runs before the first PR merges will open two separate PRs. For a single rolling PR instead, use a fixed sync branch name, force-push it, and only call `gh pr create` when one is not already open (`gh pr list --head <branch>`). Timestamped branch names match the existing `infra-sync/<timestamp>` pattern in the repo history.
+
+Merge conflicts: a conflicting `git merge` fails the run and no PR opens, surfacing as a red run to investigate. That "fail loudly" behavior is usually fine; pushing the conflicted branch for manual resolution is the alternative.
 
 ## Option C: Do Not Sync Public Workflows
 
